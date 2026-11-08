@@ -1,0 +1,4 @@
+# Le foto di partenza dei personaggi (characters/*/ref/) non vanno nel repo pubblico,
+# tranne quelle già pubbliche dell interessato.
+characters/*/ref/
+!characters/roberto/ref/
