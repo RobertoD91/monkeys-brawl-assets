@@ -67,15 +67,14 @@ def L(name, x, z, y=None, rx=0.06, rz=0.04):
     if 'Left' in name:
         J['mixamorig' + name.replace('Left', 'Right')] = Vector((-x, yy, z))
 
-for nm in ['Hips', 'Spine', 'Spine1', 'Spine2']:
-    L(nm, JT[nm][0], JT[nm][1], rx=0.2)
-L('Neck', 0.0, JT['Neck'][1], rx=0.1)
-L('Head', 0.0, JT['Head'][1], rx=0.12)
+Y0 = None  # landmarks.json ha la profondità (y) come terzo valore, già nella scala finale
+for nm in ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head']:
+    L(nm, JT[nm][0], JT[nm][1], y=JT[nm][2])
 J['mixamorigHeadTop_End'] = Vector((0, J['mixamorigHead'].y, H_TARGET))
-sx, sz = JT['LeftShoulder']
-L('LeftShoulder', sx, sz, y=depth(0.15, sz, 0.1))
+sx, sz = JT['LeftShoulder'][:2]
+L('LeftShoulder', sx, sz, y=JT['LeftShoulder'][2])
 for nm in ['LeftArm', 'LeftForeArm', 'LeftHand', 'LeftUpLeg', 'LeftLeg', 'LeftFoot']:
-    L(nm, JT[nm][0], JT[nm][1])
+    L(nm, JT[nm][0], JT[nm][1], y=JT[nm][2])
 fx = JT['LeftFoot'][0]
 ft = front(fx, 0.05)
 ay = J['mixamorigLeftFoot'].y
@@ -151,8 +150,105 @@ M.select_set(True); A.select_set(True); bpy.context.view_layer.objects.active = 
 bpy.ops.object.parent_set(type='ARMATURE_AUTO')
 empty = [g.name for g in M.vertex_groups if not any(g.index in [x.group for x in v.groups if x.weight > 0.01] for v in M.data.vertices)]
 print('VGROUPS', len(M.vertex_groups), 'empty', empty)
+
+# ---------- pulizia pesi con la geometria (braccia attaccate al busto, capelli, lati) ----------
+CUT = sorted(LM.get('arm_cut', []))
+INFO = LM['info']
+def cut_at(z):
+    if not CUT:
+        return None
+    if z <= CUT[0][0]:
+        return CUT[0][1]
+    for (z0, b0), (z1, b1) in zip(CUT, CUT[1:]):
+        if z0 <= z <= z1:
+            return b0 + (b1 - b0) * (z - z0) / (z1 - z0)
+    return CUT[-1][1]
+gname = {g.index: g.name for g in M.vertex_groups}
+# colore della texture per vertice (per riconoscere la pelle delle mani attaccate alla giacca)
+import numpy as np
+SKIN = set()
+try:
+    img = next(n.image for m in M.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
+    iw, ih = img.size
+    pix = np.array(img.pixels[:], dtype=np.float32).reshape(ih, iw, img.channels)
+    uv = M.data.uv_layers.active.data
+    acc = {}
+    for poly in M.data.polygons:
+        for li in poly.loop_indices:
+            vi = M.data.loops[li].vertex_index
+            u, w = uv[li].uv
+            c = pix[min(ih - 1, max(0, int(w * ih))), min(iw - 1, max(0, int(u * iw)))][:3]
+            acc.setdefault(vi, []).append(c)
+    for vi, cs in acc.items():
+        r, g, b_ = np.mean(cs, axis=0)
+        if r > 0.45 and g > 0.28 and b_ < g and (r - b_) > 0.12 and (r - g) < 0.3:
+            SKIN.add(vi)
+except StopIteration:
+    pass
+print('SKIN_VERTS', len(SKIN))
+is_arm = lambda n: ('Arm' in n or 'Hand' in n) and 'Shoulder' not in n
+removed = 0
+for v in M.data.vertices:
+    x, z = v.co.x, v.co.z
+    drop = set()
+    for g in v.groups:
+        n = gname[g.group]
+        if ('Left' in n and x < -0.03) or ('Right' in n and x > 0.03):
+            drop.add(g.group)                                   # lato opposto
+        elif is_arm(n) and z > INFO['shoulder_top']:
+            drop.add(g.group)                                   # capelli/testa
+    b = cut_at(z)
+    if b is not None and v.index in SKIN and abs(x) > 0.2 and INFO['hand_bottom'] - 0.02 <= z <= JT['LeftHand'][1] + 0.06:
+        b = 0.0   # pelle della mano: sempre lato braccio
+    if b is not None and INFO['hand_bottom'] - 0.02 <= z <= INFO['armpit']:
+        for g in v.groups:
+            n = gname[g.group]
+            if abs(x) < b and is_arm(n):
+                drop.add(g.group)                               # busto: niente braccio
+            elif abs(x) > b + 0.01 and z < INFO['armpit'] - 0.03 and not is_arm(n):
+                drop.add(g.group)                               # braccio: niente busto
+    if drop and len(drop) < len(v.groups):
+        for gi in drop:
+            M.vertex_groups[gi].remove([v.index])
+        removed += 1
+    elif drop:
+        # tutto da togliere: assegna l'osso giusto per la zona (braccio o busto) con peso 1
+        for gi in drop:
+            M.vertex_groups[gi].remove([v.index])
+        side = 'Left' if x > 0 else 'Right'
+        if b is not None and abs(x) > b and INFO['hand_bottom'] - 0.02 <= z <= INFO['armpit']:
+            part = 'Hand' if z < JT['LeftHand'][1] + 0.04 else ('ForeArm' if z < JT['LeftForeArm'][1] else 'Arm')
+            bone = 'mixamorig' + side + part
+        elif z > INFO['shoulder_top']:
+            bone = 'mixamorigHead' if z > JT['Head'][1] else 'mixamorigNeck'
+        else:
+            bone = 'mixamorigHips' if z < JT['Spine'][1] else 'mixamorigSpine1'
+        M.vertex_groups[bone].add([v.index], 1.0, 'REPLACE')
+        removed += 1
+print('CLEANED_VERTS', removed)
+# facce "ponte" tra pugno e giacca (vertici metà braccio e metà busto): si allungherebbero, le togliamo
+import bmesh
+arm_dom = []
+for v in M.data.vertices:
+    aw = sum(g.weight for g in v.groups if is_arm(gname[g.group]))
+    tw = sum(g.weight for g in v.groups)
+    arm_dom.append(tw > 0 and aw / tw > 0.5)
+bm = bmesh.new(); bm.from_mesh(M.data)
+z0, z1 = INFO['hand_bottom'] - 0.03, JT['LeftHand'][1] + 0.1
+bridge = [f for f in bm.faces
+          if z0 <= f.calc_center_median().z <= z1 and abs(f.calc_center_median().x) > 0.2
+          and len({arm_dom[v.index] for v in f.verts}) == 2]
+bmesh.ops.delete(bm, geom=bridge, context='FACES')
+bm.to_mesh(M.data); bm.free(); M.data.update()
+print('BRIDGE_FACES', len(bridge))
 unweighted = sum(1 for v in M.data.vertices if not any(x.weight > 1e-4 for x in v.groups))
 print('UNWEIGHTED_VERTS', unweighted)
+# normalizza (i vertici senza pesi li sistema fix_weights.py con il vicino pesato)
+bpy.context.view_layer.objects.active = M
+bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
+bpy.ops.object.vertex_group_normalize_all(group_select_mode='ALL', lock_active=False)
+bpy.ops.object.mode_set(mode='OBJECT')
+bpy.context.view_layer.objects.active = A
 
 # ---------- porta A nella T-pose di riferimento ----------
 bpy.ops.object.mode_set(mode='POSE')

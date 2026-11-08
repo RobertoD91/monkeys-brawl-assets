@@ -13,12 +13,13 @@ src, out = sys.argv[1], sys.argv[2]
 H = float(sys.argv[3]) if len(sys.argv) > 3 else 1.985
 m = trimesh.load(src, force='mesh')
 P = m.sample(400000)
-x, z = P[:, 0], P[:, 1]                     # glTF: Y in alto
+x, z, yb = P[:, 0], P[:, 1], -P[:, 2]       # glTF: Y in alto, +Z avanti -> y Blender = -Z
 s = H / (z.max() - z.min())
 x = (x - (m.bounds[0][0] + m.bounds[1][0]) / 2) * s
 z = (z - z.min()) * s
+yb = yb * s
 
-def iv(zz, half=0.006, gap=0.03):
+def iv(zz, half=0.006, gap=0.015):
     xs = np.sort(x[(z > zz - half) & (z < zz + half)])
     if len(xs) == 0:
         return []
@@ -38,22 +39,23 @@ def width(zz):
 
 # inforcatura: primo z (dal basso, sopra le caviglie) in cui un intervallo contiene x=0
 crotch = next(zz for zz in zs if zz > 0.15 * H and center_iv(zz))
-# ascella: primo z sopra l'inforcatura con un solo intervallo (braccia unite al busto)
-armpit = next(zz for zz in zs if zz > crotch and len(at(zz)) == 1)
-# fondo delle mani: z minimo con intervalli laterali staccati sopra/sotto l'inforcatura
 def side_ivs(zz):
     ivs = at(zz)
     if zz >= crotch:
         return [a for a in ivs if not (a[0] <= 0 <= a[1]) and a[0] > 0]
     legs = sorted(ivs, key=lambda a: abs((a[0] + a[1]) / 2))[:2]
     return [a for a in ivs if a not in legs and a[0] > 0]
-hand_bottom = next(zz for zz in zs if zz > 0.1 * H and side_ivs(zz))
-# spalle: dove la larghezza del busto crolla sopra l'ascella
-w0 = width(armpit + 0.05)
-shoulder_top = next(zz for zz in zs if zz > armpit + 0.08 and width(zz) < 0.7 * w0)
+# collo: sezione più stretta tra il 60% e l'80% dell'altezza
+head = min([zz for zz in zs if 0.6 * H <= zz <= 0.8 * H], key=width)
+# spalle: calo di larghezza più netto (su 4 cm) sotto il collo
+cand = [zz for zz in zs if 0.45 * H <= zz <= head - 0.04]
+drop_z = max(cand, key=lambda zz: width(zz) - width(zz + 0.04))
+shoulder_top = drop_z + 0.02
 neck = shoulder_top - 0.03
-rng = [zz for zz in zs if shoulder_top <= zz <= shoulder_top + 0.12]
-head = min(rng, key=width)
+# ascella: z più alto (sotto le spalle) con il braccio staccato dal busto
+armpit = max(zz for zz in zs if crotch < zz < shoulder_top and side_ivs(zz)) + 0.02
+# fondo delle mani: z più basso con intervalli laterali staccati
+hand_bottom = next(zz for zz in zs if zz > 0.1 * H and side_ivs(zz))
 hips = crotch + 0.12
 upleg = crotch + 0.07
 ankle = 0.05 * H
@@ -65,8 +67,14 @@ wrist = hand_bottom + 0.4 * (armpit - hand_bottom)
 elbow = (shoulder_z + wrist) / 2
 
 def arm_x(zz):
-    a = side_ivs(zz)
-    return float((a[0][0] + a[0][1]) / 2) if a else None
+    # centro del braccio; se tocca il busto usa la sezione staccata più vicina
+    for dz in sorted(np.arange(-0.15, 0.151, 0.01), key=abs):
+        z2 = zz + dz
+        if hand_bottom <= z2 < armpit:
+            a = side_ivs(z2)
+            if a:
+                return float((a[0][0] + a[0][1]) / 2)
+    return None
 def leg_x(zz):
     legs = [a for a in at(zz) if a[0] > 0]
     return float((legs[0][0] + legs[0][1]) / 2) if legs else None
@@ -83,9 +91,21 @@ L = {
     'LeftLeg': [leg_x(knee), knee],
     'LeftFoot': [leg_x(ankle + 0.03), ankle],
 }
-L = {k: [round(float(v[0]), 4), round(float(v[1]), 4)] for k, v in L.items()}
-info = dict(crotch=crotch, armpit=armpit, hand_bottom=hand_bottom, shoulder_top=shoulder_top, arm_w=arm_w)
-json.dump({'H': H, 'joints': L, 'info': {k: round(float(v), 4) for k, v in info.items()}}, open(out, 'w'), indent=1)
+def depth(jx, jz, rx=0.05, rz=0.02):
+    sel = (np.abs(np.abs(x) - abs(jx)) < rx) & (np.abs(z - jz) < rz) if jx else (np.abs(x) < 0.08) & (np.abs(z - jz) < rz)
+    ys = yb[sel]
+    return float((np.percentile(ys, 10) + np.percentile(ys, 90)) / 2) if len(ys) > 20 else 0.0
+L = {k: [round(float(v[0]), 4), round(float(v[1]), 4), round(depth(v[0], v[1]), 4)] for k, v in L.items()}
+# confine busto/braccio (|x|) per ogni sezione in cui il braccio è staccato
+cut = []
+for zz in zs:
+    if hand_bottom <= zz <= armpit:
+        side = side_ivs(zz)
+        body = [a for a in at(zz) if a not in side and a[1] > 0]
+        if side and body:
+            cut.append([round(float(zz), 3), round(float((max(a[1] for a in body if a[1] < side[0][0]) + side[0][0]) / 2), 4)])
+info = dict(crotch=crotch, head=head, armpit=armpit, hand_bottom=hand_bottom, shoulder_top=shoulder_top, arm_w=arm_w)
+json.dump({'H': H, 'joints': L, 'arm_cut': cut, 'info': {k: round(float(v), 4) for k, v in info.items()}}, open(out, 'w'), indent=1)
 print(json.dumps(info, default=float))
 for k, v in L.items():
     print(k, v)
