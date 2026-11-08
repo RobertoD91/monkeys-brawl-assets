@@ -1,6 +1,6 @@
 # andrea: pipeline del personaggio
 
-Stessa pipeline di roberto (vedi `../tools/README.md`); le foto di partenza (`ref/`) non sono nel repo perché è pubblico.
+Stessa pipeline di roberto (vedi `../tools/README.md`); le foto di partenza (`ref/`) sono nel repo privato `RobertoD91/brawl` (`characters/andrea/ref/`), non qui perché questo repo è pubblico.
 
 | Cartella | Contenuto |
 |---|---|

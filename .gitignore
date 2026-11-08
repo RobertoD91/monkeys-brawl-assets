@@ -1,4 +1,4 @@
-# Le foto di partenza dei personaggi (characters/*/ref/) non vanno nel repo pubblico,
-# tranne quelle già pubbliche dell interessato.
+# Le foto di partenza dei personaggi (characters/*/ref/) vanno nel repo privato RobertoD91/brawl,
+# non qui (repo pubblico); eccezione: quelle già pubbliche dell'interessato.
 characters/*/ref/
 !characters/roberto/ref/
