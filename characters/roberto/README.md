@@ -4,7 +4,7 @@ Segue il brief https://gist.github.com/Fraffo96/88142dc00eb05afd5be5141da5ca62b5
 
 | Cartella | Contenuto |
 |---|---|
-| `ref/` | foto di partenza (robertodisanto.it) |
+| `ref/` | foto di partenza: nel repo privato `RobertoD91/brawl` (`characters/roberto/ref/`) |
 | `sheet/` | sheet 2D approvato (Canva, solo miniatura) e vista frontale ad alta risoluzione rigenerata con FLUX.1 Kontext dev (HF) |
 | `mesh/` | output grezzo di Hunyuan3D 2.1 (`raw_shape.glb`, `raw_textured.glb`) e anteprime |
 | `rig/` | script Blender/glTF-Transform, `.blend` del rig, pose di prova (`poses_v1.png` prima versione, `poses_v2.png` finale) |
