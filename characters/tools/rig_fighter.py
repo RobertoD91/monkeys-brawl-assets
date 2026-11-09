@@ -49,6 +49,20 @@ bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
 bpy.ops.mesh.remove_doubles(threshold=0.0005); bpy.ops.object.mode_set(mode='OBJECT')
 print('FACES', nf, '->', len(M.data.polygons))
 
+# nuca color pelle -> UV su un punto "capelli" (vedi paint_back_head.py), se richiesto
+import os
+HB = os.path.join(os.path.dirname(LMK), 'hair_back.json')
+if os.path.exists(HB):
+    hb = json.load(open(HB))
+    zc = hb['neck_frac'] * H_TARGET
+    uvl = M.data.uv_layers.active.data
+    nb = 0
+    for poly in M.data.polygons:
+        if poly.normal.y > hb['normal'] and poly.center.z > zc:
+            for li in poly.loop_indices:
+                uvl[li].uv = hb['uv']
+            nb += 1
+    print('HAIR_BACK_FACES', nb)
 V = [v.co.copy() for v in M.data.vertices]
 def depth(x, z, rx=0.06, rz=0.04):
     pts = [v for v in V if abs(v.x - x) < rx and abs(v.z - z) < rz]
@@ -203,9 +217,9 @@ for v in M.data.vertices:
     if b is not None and INFO['hand_bottom'] - 0.02 <= z <= INFO['armpit']:
         for g in v.groups:
             n = gname[g.group]
-            if abs(x) < b and is_arm(n):
+            if abs(x) < b and is_arm(n) and z < INFO['armpit'] - 0.10:
                 drop.add(g.group)                               # busto: niente braccio
-            elif abs(x) > b + 0.01 and z < INFO['armpit'] - 0.03 and not is_arm(n):
+            elif abs(x) > b + 0.01 and z < INFO['armpit'] - 0.10 and not is_arm(n):
                 drop.add(g.group)                               # braccio: niente busto
     if drop and len(drop) < len(v.groups):
         for gi in drop:

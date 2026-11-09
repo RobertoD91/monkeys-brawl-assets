@@ -8,7 +8,7 @@ ID=$1; DIR=$(realpath "${2:-$T/../$ID}"); REF=$(realpath "${3:-$T/../_ref/france
 TMP=$(mktemp -d)
 cd "$DIR"
 python3 "$T/landmarks.py" mesh/raw_textured.glb rig/landmarks.json
-blender -b --python "$T/rig_fighter.py" -- mesh/raw_textured.glb "$REF" rig/landmarks.json "$ID" rig/${ID}_rig.blend rig/${ID}_raw.glb 2>&1 | grep -E '^(FACES|VGROUPS|SKIN_VERTS|CLEANED|BRIDGE_FACES|UNWEIGHTED|MAX_ORIENT|HIPS|HEIGHT|DONE)|Error|Traceback'
+blender -b --python "$T/rig_fighter.py" -- mesh/raw_textured.glb "$REF" rig/landmarks.json "$ID" rig/${ID}_rig.blend rig/${ID}_raw.glb 2>&1 | grep -E '^(FACES|VGROUPS|SKIN_VERTS|HAIR_BACK_FACES|CLEANED|BRIDGE_FACES|UNWEIGHTED|MAX_ORIENT|HIPS|HEIGHT|DONE)|Error|Traceback'
 blender -b rig/${ID}_rig.blend --python "$T/fix_weights.py" -- rig/${ID}_raw.glb 2>&1 | grep -E 'FIXED|Error|Traceback'
 rm -f rig/${ID}_rig.blend1
 node "$T/restructure.mjs" rig/${ID}_raw.glb $TMP/rs.glb "$ID"

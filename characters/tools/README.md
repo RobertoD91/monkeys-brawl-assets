@@ -10,6 +10,8 @@
 
 Requisiti: `blender`, `python3` con `trimesh`, `@gltf-transform/cli` 4.x (con `node_modules` raggiungibile da questa cartella: `ln -s $(npm root -g)/@gltf-transform/cli/node_modules node_modules`), il `francesco.glb` decompresso con `gltf-transform copy francesco.glb ../_ref/francesco.glb`.
 
+Nuca color pelle (Hunyuan proietta il viso specchiato sul retro della testa): `paint_back_head.py <mesh.glb> rig/hair_back.json <frazione collo>` prima di `build_glb.sh`; il rig rimappa le UV della nuca su un punto "capelli".
+
 Arte 2D: `build_art.py` (ritratto + testa HUD dentro `pg_art.js` del gioco).
 
 Pose di prova: `poses.html` + `shot.js` (vedi `../roberto/README.md`).

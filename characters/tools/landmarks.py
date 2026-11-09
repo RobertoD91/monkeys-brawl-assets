@@ -52,10 +52,19 @@ cand = [zz for zz in zs if 0.45 * H <= zz <= head - 0.04]
 drop_z = max(cand, key=lambda zz: width(zz) - width(zz + 0.04))
 shoulder_top = drop_z + 0.02
 neck = shoulder_top - 0.03
-# ascella: z più alto (sotto le spalle) con il braccio staccato dal busto
-armpit = max(zz for zz in zs if crotch < zz < shoulder_top and side_ivs(zz)) + 0.02
 # fondo delle mani: z più basso con intervalli laterali staccati
 hand_bottom = next(zz for zz in zs if zz > 0.1 * H and side_ivs(zz))
+# ascella: cima del tratto continuo di braccio che parte dalle mani (buchi fino a 12 cm dove il
+# braccio tocca il corpo); così coda di cavallo o capelli staccati più in alto non contano
+armpit, last = hand_bottom, hand_bottom
+for zz in zs:
+    if zz <= hand_bottom or zz >= shoulder_top:
+        continue
+    if side_ivs(zz):
+        if zz - last > 0.12:
+            break
+        last = zz
+armpit = last + 0.02
 hips = crotch + 0.12
 upleg = crotch + 0.07
 ankle = 0.05 * H
