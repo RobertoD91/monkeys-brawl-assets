@@ -1,3 +1,3 @@
-# Le foto di partenza dei personaggi (characters/*/ref/) vanno nel repo privato RobertoD91/brawl,
-# non qui (repo pubblico).
-characters/*/ref/
+# Sorgenti e foto dei personaggi stanno nel repo privato RobertoD91/brawl, non qui:
+# questo repo è pubblico e servito da jsDelivr (limite 50 MB).
+characters/
